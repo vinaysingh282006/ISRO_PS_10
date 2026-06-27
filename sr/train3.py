@@ -28,17 +28,17 @@ import model
 # CONFIG
 # ============================================================
 
-DATASET_PATH = r"C:\Users\Vinay Singh\Desktop\ISRO_PS_10\output\patches"
+DATASET_PATH = r"C:\Users\Vinay Singh\Desktop\ISRO_ARCHIVE_OUTPUT\patches"
 
 CHECKPOINT_DIR = "checkpoints"
 
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 
 EPOCHS = 100
 
 LR = 1e-4
 
-NUM_WORKERS = 6
+NUM_WORKERS = 0
 
 SEED = 42
 
@@ -352,7 +352,6 @@ def main():
     # ========================================================
 # TRAIN LOOP
 # ========================================================
-
     for epoch in range(start_epoch, EPOCHS + 1):
 
         # -----------------------------
@@ -361,186 +360,127 @@ def main():
 
         model.train()
 
-        train_loss = 0.0
+    train_loss = 0.0
 
-        loop = tqdm(
-            train_loader,
-            desc=f"Epoch {epoch}/{EPOCHS}",
-            leave=True
+    loop = tqdm(
+        train_loader,
+        desc=f"Epoch {epoch}/{EPOCHS}",
+        leave=True
+    )
+
+    for lr_img, hr_img in loop:
+
+        lr_img = lr_img.to(
+            device,
+            non_blocking=True
         )
 
-        for lr_img, hr_img in loop:
+        hr_img = hr_img.to(
+            device,
+            non_blocking=True
+        )
 
-            lr_img = lr_img.to(
-                device,
-                non_blocking=True
+        optimizer.zero_grad(
+            set_to_none=True
+        )
+
+        with autocast("cuda"):
+
+            pred = model(lr_img)
+
+            loss = combined_loss(
+                pred,
+                hr_img
             )
 
-            import time
+        if torch.isnan(loss):
 
-            t0 = time.perf_counter()
-            hr_img = hr_img.to(
-                device,
-                non_blocking=True
-            )
-
-            optimizer.zero_grad(
-                set_to_none=True
-            )
-
-            with autocast("cuda"):
-
-                pred = model(lr_img)
-
-                loss = combined_loss(
-                    pred,
-                    hr_img
-                )
-
-            if torch.isnan(loss):
-
-                print("\nNaN LOSS DETECTED\n")
-
-                print(
-                    "Prediction:",
-                    pred.min().item(),
-                    pred.max().item()
-                )
-
-                print(
-                    "Target:",
-                    hr_img.min().item(),
-                    hr_img.max().item()
-                )
-
-                raise RuntimeError(
-                    "Loss became NaN."
-                )
-
-            scaler.scale(loss).backward()
-
-            scaler.unscale_(optimizer)
-
-            torch.nn.utils.clip_grad_norm_(
-                model.parameters(),
-                1.0
-            )
-
-            scaler.step(optimizer)
-
-            scaler.update()
-            t3 = time.perf_counter()
+            print("\nNaN LOSS DETECTED\n")
 
             print(
-                f"Load:{t1-t0:.3f}s  "
-                f"Forward:{t2-t1:.3f}s  "
-                f"Backward:{t3-t2:.3f}s"
+                "Prediction:",
+                pred.min().item(),
+                pred.max().item()
             )
 
-            break
-            train_loss += loss.item()
-
-            loop.set_postfix(
-                loss=f"{loss.item():.5f}"
+            print(
+                "Target:",
+                hr_img.min().item(),
+                hr_img.max().item()
             )
 
-        scheduler.step()
+            raise RuntimeError(
+                "Loss became NaN."
+            )
 
-        train_loss /= len(train_loader)
+        scaler.scale(loss).backward()
 
-        # -----------------------------
-        # VALIDATION
-        # -----------------------------
+        scaler.unscale_(optimizer)
 
-        model.eval()
-
-        val_loss = 0.0
-
-        val_psnr = 0.0
-
-        with torch.no_grad():
-
-            for lr_img, hr_img in tqdm(
-
-                val_loader,
-
-                desc="Validation",
-
-                leave=False
-
-            ):
-
-                lr_img = lr_img.to(
-                    device,
-                    non_blocking=True
-                )
-
-                hr_img = hr_img.to(
-                    device,
-                    non_blocking=True
-                )
-                t1 = time.perf_counter()
-                pred = model(lr_img)
-                t2 = time.perf_counter()
-                if torch.isnan(pred).any():
-
-                    raise RuntimeError(
-                        "NaN detected in prediction."
-                    )
-
-                loss = combined_loss(
-                    pred,
-                    hr_img
-                )
-
-                val_loss += loss.item()
-
-                val_psnr += psnr(
-                    pred,
-                    hr_img
-                )
-
-        val_loss /= len(val_loader)
-
-        val_psnr /= len(val_loader)
-
-        reward = (
-
-            val_psnr
-
-            -
-
-            10.0 * val_loss
-
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            1.0
         )
 
-        print()
+        scaler.step(optimizer)
 
-        print("=" * 60)
+        scaler.update()
 
-        print(
-            f"Epoch {epoch}/{EPOCHS}"
+        train_loss += loss.item()
+
+        loop.set_postfix(
+            loss=f"{loss.item():.5f}"
         )
 
-        print(
-            f"Train Loss : {train_loss:.6f}"
-        )
+    scheduler.step()
 
-        print(
-            f"Val Loss   : {val_loss:.6f}"
-        )
+    train_loss /= len(train_loader)
 
-        print(
-            f"PSNR       : {val_psnr:.2f} dB"
-        )
+    # -----------------------------
+    # VALIDATION
+    # -----------------------------
 
-        print(
-            f"Reward     : {reward:.3f}"
-        )
+    model.eval()
 
-        print("=" * 60)
+val_loss = 0.0
+val_psnr = 0.0
 
-        print()
+with torch.no_grad():
+
+    for lr_img, hr_img in tqdm(
+        val_loader,
+        desc="Validation",
+        leave=False
+    ):
+
+        lr_img = lr_img.to(device, non_blocking=True)
+        hr_img = hr_img.to(device, non_blocking=True)
+
+        # THIS WAS MISSING
+        pred = model(lr_img)
+
+        if torch.isnan(pred).any():
+            raise RuntimeError("NaN detected in prediction.")
+
+        loss = combined_loss(pred, hr_img)
+
+        val_loss += loss.item()
+        val_psnr += psnr(pred, hr_img)
+
+val_loss /= len(val_loader)
+val_psnr /= len(val_loader)
+
+reward = val_psnr - 10.0 * val_loss
+
+print()
+print("=" * 60)
+print(f"Epoch {epoch}/{EPOCHS}")
+print(f"Train Loss : {train_loss:.6f}")
+print(f"Val Loss   : {val_loss:.6f}")
+print(f"PSNR       : {val_psnr:.2f} dB")
+print(f"Reward     : {reward:.3f}")
+print("=" * 60)
+print()
 
         # =======================================================
     # SAVE LAST CHECKPOINT

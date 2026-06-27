@@ -127,7 +127,7 @@ class TIRSuperResolutionDataset(Dataset):
 if __name__ == "__main__":
 
     dataset = TIRSuperResolutionDataset(
-        r"C:\Users\Vinay Singh\Desktop\ISRO_PS_10\output\patches"
+        r"C:\Users\Vinay Singh\Desktop\ISRO_ARCHIVE_OUTPUT\patches"
     )
 
     print("\nDataset Size:", len(dataset))

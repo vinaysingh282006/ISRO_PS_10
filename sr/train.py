@@ -15,9 +15,9 @@ from model import RCANLite
 # CONFIG
 # ==========================
 
-DATASET_PATH = r"C:\Users\Vinay Singh\Desktop\ISRO_PS_10\output\patches"
+DATASET_PATH = r"C:\Users\Vinay Singh\Desktop\ISRO_ARCHIVE_OUTPUT\patches"
 
-BATCH_SIZE = 8
+BATCH_SIZE = 2
 EPOCHS = 100
 LR = 1e-4
 NUM_WORKERS = 0
