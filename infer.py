@@ -15,7 +15,7 @@ from model import build_generator
 MODEL_PATH = r"checkpoints/generator_best.pth"
 
 INPUT_FILE = r"samples/tir_100m_512.npy"
-#INPUT_FILE = r"samples/D-115_B10.tiff" 
+#INPUT_FILE = r"samples/D-115_B10.tiff"
 
 OUTPUT_DIR = "samples"
 
@@ -261,101 +261,94 @@ print()
 
 print("Saving outputs...")
 
-
-
 # ==========================================================
-# POST PROCESS
+# CONVERT TO UINT16
 # ==========================================================
 
-prediction = np.clip(prediction, 0.0, 1.0)
+prediction = np.clip(
+    prediction,
+    0,
+    1
+)
 
-# Network output (H,W,C)
-rgb = np.transpose(prediction, (1, 2, 0))
+rgb = np.transpose(
+    prediction,
+    (1, 2, 0)
+)
 
-# -------- ISRO style visualization --------
+rgb = enhance_rgb(rgb)
 
 rgb_vis = percentile_stretch(rgb)
-""""
-# Very light denoising (removes speckle)
-rgb_vis = cv2.bilateralFilter(
-    (rgb_vis * 255).astype(np.uint8),
-    5,
-    25,
-    7
-).astype(np.float32) / 255.0
-"""
 
-rgb_vis = cv2.fastNlMeansDenoisingColored(
-    (rgb_vis*255).astype(np.uint8),
-    None,
-    4,
-    4,
-    7,
-    21
-    ).astype(np.float32)/255.0
+prediction_uint16 = (
+    rgb.transpose(2, 0, 1) * 65535
+).astype(np.uint16)
+
 # ==========================================================
-# SAVE NPY (RAW FLOAT)
+# SAVE NPY
 # ==========================================================
 
 npy_path = os.path.join(
+
     OUTPUT_DIR,
+
     "rgb_prediction.npy"
+
 )
 
 np.save(
+
     npy_path,
-    prediction
+
+    prediction_uint16
+
 )
 
 print("Saved :", npy_path)
 
 # ==========================================================
-# SAVE TIFF (RAW MODEL OUTPUT)
+# SAVE TIFF
 # ==========================================================
+prediction_uint16 = (
+    prediction * 65535
+).astype(np.uint16)
 
-tif_path = os.path.join(
-    OUTPUT_DIR,
-    "rgb_prediction.tif"
+# ==========================================================
+# SAVE RAW PNG
+# ==========================================================
+rgb = np.transpose(
+    prediction,
+    (1,2,0)
 )
 
-rgb16 = (prediction * 65535).astype(np.uint16)
-
-with rasterio.open(
-
-    tif_path,
-
-    "w",
-
-    driver="GTiff",
-
-    height=prediction.shape[1],
-
-    width=prediction.shape[2],
-
-    count=3,
-
-    dtype=np.uint16,
-
-    photometric="RGB",
-
-    interleave="pixel"
-
-) as dst:
-
-    dst.write(rgb16)
-
-print("Saved :", tif_path)
-
+rgb = percentile_stretch(rgb)
 # ==========================================================
-# SAVE PNG (VISUALIZATION)
+# SAVE NORMALIZED PNG
 # ==========================================================
 
 png_path = os.path.join(
+
     OUTPUT_DIR,
+
     "rgb_prediction.png"
+
 )
 
-plt.figure(figsize=(8,8))
+
+rgb = np.transpose(
+    prediction,
+    (1, 2, 0)
+)
+
+rgb = enhance_rgb(rgb)
+
+rgb_vis = percentile_stretch(rgb)
+
+plt.figure(
+
+    figsize=(8, 8)
+
+)
 
 plt.imshow(rgb_vis)
 
@@ -364,10 +357,13 @@ plt.axis("off")
 plt.tight_layout()
 
 plt.savefig(
+
     png_path,
+
     dpi=200,
-    bbox_inches="tight",
-    pad_inches=0
+
+    bbox_inches="tight"
+
 )
 
 plt.close()
@@ -379,36 +375,95 @@ print("Saved :", png_path)
 # ==========================================================
 
 hist_path = os.path.join(
+
     OUTPUT_DIR,
+
     "rgb_histogram.png"
+
 )
 
-plt.figure(figsize=(8,5))
+plt.figure(
 
-colors = ["red","green","blue"]
+    figsize=(8, 5)
+
+)
+
+colors = [
+
+    "red",
+
+    "green",
+
+    "blue"
+
+]
 
 for i in range(3):
 
     plt.hist(
+
         prediction[i].ravel(),
+
         bins=256,
+
         alpha=0.5,
-        color=colors[i]
+
+        color=colors[i],
+
+        label=f"Channel {i}"
+
     )
+
+plt.legend()
+
+plt.xlabel("Pixel Value")
+
+plt.ylabel("Frequency")
 
 plt.tight_layout()
 
-plt.savefig(hist_path)
+plt.savefig(
+
+    hist_path,
+
+    dpi=200
+
+)
 
 plt.close()
 
 print("Saved :", hist_path)
 
 # ==========================================================
+# FINISHED
+# ==========================================================
 
 print()
-print("="*60)
+
+print("=" * 60)
+
 print("Inference Finished Successfully")
-print("="*60)
+
+print()
+
+print("RGB Shape :", prediction.shape)
+
+print()
+
+print("Files Generated")
+
+print("----------------")
+
+print(npy_path)
+
+#print(tif_path)
+
+print(png_path)
+
+#print(raw_png)
+
+print(hist_path)
+
+print("=" * 60)
 
 torch.cuda.empty_cache()
