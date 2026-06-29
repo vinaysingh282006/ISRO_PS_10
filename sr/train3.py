@@ -2,6 +2,16 @@
 # IR SUPER RESOLUTION TRAINER
 # Windows Multiprocessing Safe Version
 # ============================================================
+r"""
+
+# ============================================================
+we will get back to it for now train.py works good enough for now
+
+this version is better but i do not get enough time to get it completely working and tested. I will get back to it later.
+
+# ============================================================
+
+
 
 import os
 import random
@@ -529,3 +539,7 @@ print()
 if __name__ == "__main__":
 
     main()
+
+    
+
+    """
